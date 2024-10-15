@@ -1,12 +1,38 @@
 package main
 
 import (
-    "fmt"
-    "net"
-    "github.com/gdamore/tcell/v2" 
-    "log"
+	"fmt"
+	"gommo/shared"
+	"log"
+	"net"
+
+	"github.com/gdamore/tcell/v2"
 )
 
+func build_packet(packetType shared.PacketType) []byte {
+	switch packetType {
+	case shared.PacketTypeConnect:
+		base := fmt.Sprintf("gommo\n%c\n", packetType)
+		packetLen := len(base)
+		packet := fmt.Sprintf("%d\n%s", packetLen, base)
+		return []byte(packet)
+	case shared.PacketTypeMap:
+
+		base := fmt.Sprintf("gommo\n%c\n", packetType)
+		packetLen := len(base)
+		packet := fmt.Sprintf("%d\n%s", packetLen, base)
+		return []byte(packet)
+	case shared.PacketTypeMove:
+		// TODO:
+		return []byte("gommo\nE\n")
+	default:
+		return []byte("gommo\nE\n")
+	}
+}
+
+func handle_got_response(response []byte) {
+	return
+}
 func drawText(s tcell.Screen, x1, y1, x2, y2 int, style tcell.Style, text string) {
 	row := y1
 	col := x1
@@ -59,65 +85,65 @@ func drawBox(s tcell.Screen, x1, y1, x2, y2 int, style tcell.Style, text string)
 	drawText(s, x1+1, y1+1, x2-1, y2-1, style, text)
 }
 
-
 func main() {
-    // Connect to the server
-    conn, err := net.Dial("tcp", "localhost:8080")
-    if err != nil {
-        fmt.Println(err)
-        return
-    }
+	// Connect to the server
+	conn, err := net.Dial("tcp", "localhost:8080")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 
-    defer conn.Close()
+	defer conn.Close()
 
-    _, err = conn.Write([]byte("gommo"))
-    if err != nil {
-        fmt.Println(err)
-        return
-    }
-    buf := make([]byte, 1024)
+	_, err = conn.Write(build_packet(shared.PacketTypeConnect))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	buf := make([]byte, 1024)
 
-    n, err := conn.Read(buf)
-    if err != nil {
-        fmt.Println(err)
-        return
-    }
-    sessionID := string(buf[:n])
-    fmt.Printf("Received SessionID: %s\n", sessionID)
+	n, err := conn.Read(buf)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	sessionID := string(buf[:n])
+	fmt.Printf("Received SessionID: %s\n", sessionID)
 
-    s, err := tcell.NewScreen()
-    if err != nil {
-        log.Fatalf("%+v", err)
-    }
-    if err := s.Init(); err != nil {
-        log.Fatalf("%+v", err)
-    }
+	// crete new screen
+	s, err := tcell.NewScreen()
+	if err != nil {
+		log.Fatalf("%+v", err)
+	}
+	if err := s.Init(); err != nil {
+		log.Fatalf("%+v", err)
+	}
 
-    defStyle := tcell.StyleDefault.Background(tcell.ColorReset).Foreground(tcell.ColorReset)
-    s.SetStyle(defStyle)
-    s.EnableMouse()
-    s.EnablePaste()
+	defStyle := tcell.StyleDefault.Background(tcell.ColorReset).Foreground(tcell.ColorReset)
+	s.SetStyle(defStyle)
+	s.EnableMouse()
+	s.EnablePaste()
 
-    s.Clear()
-    quit := func() {
-        maybePanic := recover()
-        s.Fini()
-        if maybePanic != nil {
-            panic(maybePanic)
-        }
-    }
-    defer quit()
-    for {
-        // MARK: Loop
-        s.Show()
-        ev := s.PollEvent()
-        drawBox(s, 0, 0, 50, 50, defStyle, "hello world")
+	s.Clear()
+	quit := func() {
+		maybePanic := recover()
+		s.Fini()
+		if maybePanic != nil {
+			panic(maybePanic)
+		}
+	}
+	defer quit()
+	for {
+		// MARK: Loop
+		s.Show()
+		ev := s.PollEvent()
+		drawBox(s, 0, 0, 50, 50, defStyle, "hello world")
 
-        s.SetContent(0,0, 'H', nil, defStyle)
-        s.SetContent(1,0, 'i', nil, defStyle)
-        s.SetContent(2,0, 'H', nil, defStyle)
+		s.SetContent(0, 0, 'H', nil, defStyle)
+		s.SetContent(1, 0, 'i', nil, defStyle)
+		s.SetContent(2, 0, 'H', nil, defStyle)
 
-        switch ev := ev.(type) {
+		switch ev := ev.(type) {
 		case *tcell.EventResize:
 			s.Sync()
 		case *tcell.EventKey:
@@ -128,24 +154,22 @@ func main() {
 			} else if ev.Rune() == 'C' || ev.Rune() == 'c' {
 				s.Clear()
 			}
-        }
-        n, err := conn.Read(buf)
-        if err != nil {
-            fmt.Println(err)
-            return
-        
-        }
-        fmt.Printf("Received: %s\n", buf[:n])
+		}
+		n, err := conn.Read(buf)
+		if err != nil {
+			fmt.Println(err)
+			return
 
-        response_str := sessionID + "\nresponse"
-        fmt.Println(response_str)
+		}
+		fmt.Printf("Received: %s\n", buf[:n])
 
-    }
+		response_str := sessionID + "\nresponse"
+		fmt.Println(response_str)
 
+	}
 
-    // Send some data to the server
+	// Send some data to the server
 
-
-    // Close the connection
-    conn.Close()
-} 
+	// Close the connection
+	conn.Close()
+}
