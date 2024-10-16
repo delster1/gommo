@@ -19,4 +19,4 @@ holds map that can be sent out
 contains important stuff both programs need to know
 
 packet syntax:
-"<packetLength>\n<gommo>\n<packetType>\n<data/nothing>
+"<packetLength>\n<gommo>\n<packetType>\n<data/nothing>"

@@ -1,11 +1,13 @@
 package main
 
 import (
-	"bytes"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"gommo/shared"
 	"net"
+	"strings"
 )
 
 type Cell int
@@ -21,6 +23,7 @@ func create_universe(width int, height int) (u universe) {
 	u.Map = make([]Cell, width*height)
 	return u
 }
+
 func GenerateSessionID(length int) (string, error) {
 	// Create a byte slice with the specified length
 	bytes := make([]byte, length)
@@ -45,9 +48,9 @@ func iterate_over_cells(u universe) (new_u universe) {
 
 func main() {
 	server_u := create_universe(50, 50)
-	my_server := create_server(8080, server_u)
+	svr := CreateServer(8080, server_u)
 
-	fmt.Println(my_server.u.Map)
+	fmt.Println(svr.u.Map)
 	ln, err := net.Listen("tcp", ":8080")
 	if err != nil {
 		fmt.Println(err)
@@ -63,11 +66,11 @@ func main() {
 			continue
 		}
 
-		go handleConnection(conn)
+		go handleConnection(conn, &svr)
 	}
 }
 
-func handleConnection(conn net.Conn) {
+func handleConnection(conn net.Conn, svr *Server) {
 	defer conn.Close()
 	buf := make([]byte, 1024)
 	n, err := conn.Read(buf)
@@ -78,30 +81,72 @@ func handleConnection(conn net.Conn) {
 
 	// Print the incoming data
 	fmt.Printf("Received: %s\n", buf[:n])
-	if !bytes.Equal(buf[:n], []byte("gommo")) {
-		fmt.Println("Invalid request")
-		conn.Close()
+
+	packetType, err := process_request(buf[:n])
+	if err != nil {
+		fmt.Printf("Error processing connection request %s\n", err)
+		return
 	}
-	sessionID, _ := GenerateSessionID(16)
-	conn.Write([]byte(sessionID))
+	handle_connection_request(packetType, svr, conn)
 	for {
-
-		response := process_request(buf)
-		if response != nil {
-			_, err := conn.Write([]byte(response))
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
+		n, err := conn.Read(buf)
+		if err != nil {
+			fmt.Println(err)
+			return
 		}
-	}
+		fmt.Printf("Recieved: %s\n", buf[:n])
+		packettype, err := process_request(buf[:n])
 
+		handle_request_behavior(packettype, buf, svr)
+	}
 }
 
-func process_request(buf []byte) (response []byte) {
-	switch {
-	case bytes.Equal(buf, []byte("gommo")):
-		fmt.Println("Incoming client, generating session id")
+func handle_connection_request(packettype shared.PacketType, svr *Server, con net.Conn) error {
+	switch packettype {
+	case shared.PacketTypeConnect:
+		sessionid, _ := GenerateSessionID(16)
+		connection := Connection{sessionid, con}
+		svr.Connections = append(svr.Connections, connection)
+		base := fmt.Sprintf("gommo\nC\n%s\n", sessionid)
+		length := len(base)
+		response := fmt.Sprintf("%d\n%s\n", length, base)
+		con.Write([]byte(response))
+		return nil
+	default:
+		errorString := fmt.Sprintf("Incorrect Packet type at connection time %c\n", packettype)
+		return errors.New(errorString)
 	}
-	return nil
+}
+func handle_request_behavior(packettype shared.PacketType, buf []byte, svr *Server) error {
+	switch packettype {
+	case shared.PacketTypeConnect:
+		errorString := fmt.Sprintf("Recieved connection packet at incorect time")
+		return errors.New(errorString)
+	default:
+		return errors.New("To Be Implemented")
+	}
+}
+
+func process_request(request []byte) (shared.PacketType, error) {
+	request_str := string(request)
+	parts := strings.Split(request_str, "\n")
+	errorString := fmt.Sprintf("Invalid Packet:\t%s", string(request))
+	if parts[1] != "gommo" {
+		return shared.PacketTypeErr, errors.New(errorString)
+	}
+
+	switch parts[2] {
+	case "C":
+		return shared.PacketTypeConnect, nil
+	case "M":
+		return shared.PacketTypeMap, nil
+	case "L":
+		return shared.PacketTypeMove, nil
+	case "X":
+		return shared.PacketTypeDisconnect, nil
+	case "E":
+		return shared.PacketTypeErr, nil
+	default:
+		return shared.PacketTypeErr, nil
+	}
 }

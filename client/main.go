@@ -1,10 +1,12 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"gommo/shared"
 	"log"
 	"net"
+	"strings"
 
 	"github.com/gdamore/tcell/v2"
 )
@@ -25,13 +27,30 @@ func build_packet(packetType shared.PacketType) []byte {
 	case shared.PacketTypeMove:
 		// TODO:
 		return []byte("gommo\nE\n")
+	case shared.PacketTypeDisconnect:
+		return []byte("X")
 	default:
 		return []byte("gommo\nE\n")
 	}
 }
 
-func handle_got_response(response []byte) {
-	return
+func handle_connection_response(response []byte) (string, error) {
+	response_str := string(response)
+	fmt.Println(response_str)
+	packet_parts := strings.Split(response_str, "\n")
+	if packet_parts[1] != "gommo" {
+		fmt.Println("bad packet recieved")
+		return "", errors.New("Bad Packet Recieved to Connection")
+	}
+	switch packet_parts[2] {
+	case "C":
+		sessionID := packet_parts[3]
+		return sessionID, nil
+	default:
+		errorString := fmt.Sprintf("Recieved incorrect packet to handle connection's response, %s\n", packet_parts[2])
+		return "", errors.New(errorString)
+	}
+
 }
 func drawText(s tcell.Screen, x1, y1, x2, y2 int, style tcell.Style, text string) {
 	row := y1
@@ -84,7 +103,29 @@ func drawBox(s tcell.Screen, x1, y1, x2, y2 int, style tcell.Style, text string)
 
 	drawText(s, x1+1, y1+1, x2-1, y2-1, style, text)
 }
+func drawScreen(s tcell.Screen, defStyle tcell.Style) {
+	s.Show()
+	ev := s.PollEvent()
+	drawBox(s, 0, 0, 50, 50, defStyle, "hello world")
 
+	s.SetContent(0, 0, 'H', nil, defStyle)
+	s.SetContent(1, 0, 'i', nil, defStyle)
+	s.SetContent(2, 0, 'H', nil, defStyle)
+
+	switch ev := ev.(type) {
+	case *tcell.EventResize:
+		s.Sync()
+	case *tcell.EventKey:
+		if ev.Key() == tcell.KeyEscape || ev.Key() == tcell.KeyCtrlC {
+			return
+		} else if ev.Key() == tcell.KeyCtrlL {
+			s.Sync()
+		} else if ev.Rune() == 'C' || ev.Rune() == 'c' {
+			s.Clear()
+		}
+	}
+
+}
 func main() {
 	// Connect to the server
 	conn, err := net.Dial("tcp", "localhost:8080")
@@ -107,7 +148,12 @@ func main() {
 		fmt.Println(err)
 		return
 	}
-	sessionID := string(buf[:n])
+	sessionID, err := handle_connection_response(buf[:n])
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
 	fmt.Printf("Received SessionID: %s\n", sessionID)
 
 	// crete new screen
@@ -134,27 +180,8 @@ func main() {
 	}
 	defer quit()
 	for {
+		// drawScreen(s, defStyle)
 		// MARK: Loop
-		s.Show()
-		ev := s.PollEvent()
-		drawBox(s, 0, 0, 50, 50, defStyle, "hello world")
-
-		s.SetContent(0, 0, 'H', nil, defStyle)
-		s.SetContent(1, 0, 'i', nil, defStyle)
-		s.SetContent(2, 0, 'H', nil, defStyle)
-
-		switch ev := ev.(type) {
-		case *tcell.EventResize:
-			s.Sync()
-		case *tcell.EventKey:
-			if ev.Key() == tcell.KeyEscape || ev.Key() == tcell.KeyCtrlC {
-				return
-			} else if ev.Key() == tcell.KeyCtrlL {
-				s.Sync()
-			} else if ev.Rune() == 'C' || ev.Rune() == 'c' {
-				s.Clear()
-			}
-		}
 		n, err := conn.Read(buf)
 		if err != nil {
 			fmt.Println(err)
