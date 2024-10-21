@@ -10,17 +10,9 @@ import (
 	"strings"
 )
 
-type Cell int
-
-type universe struct {
-	Map    []Cell
-	Width  int
-	Height int
-}
-
-func create_universe(width int, height int) (u universe) {
-	u = universe{Map: nil, Width: width, Height: height}
-	u.Map = make([]Cell, width*height)
+func create_universe(width int, height int) (u shared.Universe) {
+	u = shared.Universe{Map: nil, Width: width, Height: height}
+	u.Map = make([]shared.Cell, width*height)
 	return u
 }
 
@@ -35,7 +27,7 @@ func GenerateSessionID(length int) (string, error) {
 	// Return the session ID as a hex string
 	return hex.EncodeToString(bytes), nil
 }
-func iterate_over_cells(u universe) (new_u universe) {
+func iterate_over_cells(u shared.Universe) (new_u shared.Universe) {
 	for i := range u.Map {
 		// y := i % width
 		// x := i % height
@@ -89,6 +81,7 @@ func handleConnection(conn net.Conn, svr *Server) {
 	}
 	handle_connection_request(packetType, svr, conn)
 	for {
+		// MARK: Conn Loop
 		n, err := conn.Read(buf)
 		if err != nil {
 			fmt.Println(err)
@@ -96,9 +89,19 @@ func handleConnection(conn net.Conn, svr *Server) {
 		}
 		fmt.Printf("Recieved: %s\n", buf[:n])
 		packettype, err := process_request(buf[:n])
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
 
-		handle_request_behavior(packettype, buf, svr)
+		response, err := handle_request_behavior(packettype, buf, svr)
+		_, err = conn.Write(response)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
 	}
+
 }
 
 func handle_connection_request(packettype shared.PacketType, svr *Server, con net.Conn) error {
@@ -117,13 +120,33 @@ func handle_connection_request(packettype shared.PacketType, svr *Server, con ne
 		return errors.New(errorString)
 	}
 }
-func handle_request_behavior(packettype shared.PacketType, buf []byte, svr *Server) error {
+func handle_request_behavior(packettype shared.PacketType, buf []byte, svr *Server) ([]byte, error) {
 	switch packettype {
 	case shared.PacketTypeConnect:
 		errorString := fmt.Sprintf("Recieved connection packet at incorect time")
-		return errors.New(errorString)
+		return nil, errors.New(errorString)
+	case shared.PacketTypeMap:
+		mapBytes, err := ConvertMapToBytes(svr.u)
+		if err != nil {
+			fmt.Println(err)
+			return nil, err
+		}
+		finalMapBytes, err := CompressMapData(mapBytes)
+		if err != nil {
+			fmt.Println(err)
+			return nil, err
+		}
+
+		base := fmt.Sprintf("gommo\n%c", packettype)
+		length := len(base)
+		packet := fmt.Sprintf("%d\n%s\n", length, base)
+		packet_bytes := []byte(packet)
+		final_packet := append(packet_bytes, finalMapBytes...)
+		// final_packet = append(final_packet, []byte("\n")...)
+		fmt.Printf("final map packet: %b\n", final_packet)
+		return final_packet, nil
 	default:
-		return errors.New("To Be Implemented")
+		return nil, errors.New("To Be Implemented")
 	}
 }
 

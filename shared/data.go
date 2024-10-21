@@ -14,7 +14,13 @@ const (
 	PacketTypeDisconnect PacketType = 'X'
 	PacketTypeErr        PacketType = 'E'
 )
+type Cell int32
 
+type Universe struct {
+	Map    []Cell
+	Width  int
+	Height int
+}
 func NewPlayer() *Player {
 	return &Player{XPosititon: 0, YPosition: 0}
 }

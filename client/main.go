@@ -1,17 +1,57 @@
 package main
 
 import (
+	"bytes"
+	"compress/zlib"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"gommo/shared"
+	"io"
 	"log"
+	"math"
 	"net"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/gdamore/tcell/v2"
 )
 
-func build_packet(packetType shared.PacketType) []byte {
+func DecompressMapData(data []byte) ([]byte, error) {
+	buf := bytes.NewReader(data)
+	reader, err := zlib.NewReader(buf)
+	if err != nil {
+		return nil, err
+	}
+	var out bytes.Buffer
+	_, err = io.Copy(&out, reader)
+	if err != nil {
+		return nil, err
+	}
+	reader.Close()
+	return out.Bytes(), nil
+}
+func ConvertBytesToMap(data []byte) (shared.Universe, error) {
+
+	temp := int(len(data))
+	u := shared.Universe{
+		Map:    make([]shared.Cell, temp),
+		Width:  int(math.Sqrt(float64(temp))),
+		Height: int(math.Sqrt(float64(temp))),
+	}
+	fmt.Println("created universe")
+	buf := bytes.NewReader(data)
+	for i := range u.Map {
+		if err := binary.Read(buf, binary.LittleEndian, &u.Map[i]); err != nil {
+			return u, err
+		}
+	}
+	return u, nil
+}
+
+func build_request_packet(packetType shared.PacketType) []byte {
 	switch packetType {
 	case shared.PacketTypeConnect:
 		base := fmt.Sprintf("gommo\n%c\n", packetType)
@@ -36,7 +76,6 @@ func build_packet(packetType shared.PacketType) []byte {
 
 func handle_connection_response(response []byte) (string, error) {
 	response_str := string(response)
-	fmt.Println(response_str)
 	packet_parts := strings.Split(response_str, "\n")
 	if packet_parts[1] != "gommo" {
 		fmt.Println("bad packet recieved")
@@ -49,6 +88,38 @@ func handle_connection_response(response []byte) (string, error) {
 	default:
 		errorString := fmt.Sprintf("Recieved incorrect packet to handle connection's response, %s\n", packet_parts[2])
 		return "", errors.New(errorString)
+	}
+}
+
+func handle_response_behavior(response []byte) (string, error) {
+	response_str := string(response)
+	packet_parts := strings.Split(response_str, "\n")
+	// packet_len := packet_parts[0]
+	if packet_parts[1] != "gommo" || packet_parts[2] == "C" {
+		errorString := fmt.Sprintf("bad packet recieved %b", packet_parts[1])
+		return "", errors.New(errorString)
+	}
+	switch packet_parts[2] {
+	case "M":
+		fmt.Printf("Received Map Packet: %b\n", response)
+		mapDataStart := strings.Index(response_str, "\nM\n") + 3
+		universeBytes, err := DecompressMapData(response[mapDataStart:])
+		if err != nil {
+			errStr := fmt.Sprintf("Error decompressing map, %s", err)
+			fmt.Println(errStr)
+			return "", err
+		}
+		fmt.Printf("decompressed Result%b\n", universeBytes)
+		clientUniverse, err := ConvertBytesToMap(universeBytes)
+		if err != nil {
+			errStr := fmt.Sprintf("Error converting bytes to map %s", err)
+			fmt.Println(errStr)
+			return "", err
+		}
+		fmt.Println(clientUniverse.Map)
+		return string(clientUniverse.Map), nil
+	default:
+		return "to be implemented", errors.New("To Be Implemented")
 	}
 
 }
@@ -136,25 +207,66 @@ func main() {
 
 	defer conn.Close()
 
-	_, err = conn.Write(build_packet(shared.PacketTypeConnect))
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	buf := make([]byte, 1024)
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	n, err := conn.Read(buf)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	sessionID, err := handle_connection_response(buf[:n])
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
+	errChan := make(chan error, 1)
+	go func() {
+		buf := make([]byte, 1024)
+		_, err = conn.Write(build_request_packet(shared.PacketTypeConnect))
+		if err != nil {
+			fmt.Println(err)
+			return
+		} // sends connection request
 
-	fmt.Printf("Received SessionID: %s\n", sessionID)
+		n, err := conn.Read(buf)
+		if err != nil {
+			fmt.Println(err)
+			return
+		} // loads buf with connection info from server
+
+		_, err = handle_connection_response(buf[:n])
+		if err != nil {
+			fmt.Println(err)
+			return
+		} // grabs sessionid from buf
+
+		//MARK: Testing stuff here rn
+		_, err = conn.Write(build_request_packet(shared.PacketTypeMap))
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		n, err = conn.Read(buf)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		server_map, err := handle_response_behavior(buf[:n])
+		fmt.Println(server_map)
+		for {
+			//MARK: Main looping handler
+			n, err := conn.Read(buf)
+			if err != nil {
+				errChan <- err
+				return
+			}
+			fmt.Printf("Received from server:%b\n", buf[:n])
+		}
+	}()
+	for {
+		select {
+		case <-sigChan:
+			// Gracefully handle the signal (Ctrl+C or termination)
+			fmt.Println("Exiting, closing connection...")
+			conn.Close()
+			return
+		case err := <-errChan:
+			// Handle any network errors
+			fmt.Println("Network error:", err)
+			return
+		}
+	}
 
 	// crete new screen
 	s, err := tcell.NewScreen()
@@ -179,21 +291,21 @@ func main() {
 		}
 	}
 	defer quit()
-	for {
-		// drawScreen(s, defStyle)
-		// MARK: Loop
-		n, err := conn.Read(buf)
-		if err != nil {
-			fmt.Println(err)
-			return
+	// for {
+	// 	// drawScreen(s, defStyle)
+	// 	// MARK: Loop
+	// 	n, err := conn.Read(buf)
+	// 	if err != nil {
+	// 		fmt.Println(err)
+	// 		return
 
-		}
-		fmt.Printf("Received: %s\n", buf[:n])
+	// 	}
+	// 	fmt.Printf("Received: %s\n", buf[:n])
 
-		response_str := sessionID + "\nresponse"
-		fmt.Println(response_str)
+	// 	response_str := sessionID + "\nresponse"
+	// 	fmt.Println(response_str)
 
-	}
+	// }
 
 	// Send some data to the server
 
