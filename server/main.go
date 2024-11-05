@@ -10,9 +10,9 @@ import (
 	"strings"
 )
 
-func create_universe(width int, height int) (u shared.Universe) {
-	u = shared.Universe{Map: nil, Width: width, Height: height}
-	u.Map = make([]shared.Cell, width*height)
+func create_universe(size int) (u shared.Universe) {
+	u = shared.Universe{Map: nil, Size: size}
+	u.Map = make([]shared.Cell, size*size)
 	return u
 }
 
@@ -39,7 +39,7 @@ func iterate_over_cells(u shared.Universe) (new_u shared.Universe) {
 }
 
 func main() {
-	server_u := create_universe(50, 50)
+	server_u := create_universe(50)
 	svr := CreateServer(8080, server_u)
 
 	fmt.Println(svr.u.Map)
@@ -126,18 +126,18 @@ func handle_request_behavior(packettype shared.PacketType, buf []byte, svr *Serv
 		errorString := fmt.Sprintf("Recieved connection packet at incorect time")
 		return nil, errors.New(errorString)
 	case shared.PacketTypeMap:
-		mapBytes, err := ConvertMapToBytes(svr.u)
+		mapBytes, err := shared.ConvertMapToBytes(svr.u)
 		if err != nil {
 			fmt.Println(err)
 			return nil, err
 		}
-		finalMapBytes, err := CompressMapData(mapBytes)
+		finalMapBytes, err := shared.CompressMapData(mapBytes)
 		if err != nil {
 			fmt.Println(err)
 			return nil, err
 		}
 
-		base := fmt.Sprintf("gommo\n%c", packettype)
+		base := fmt.Sprintf("gommo\n%c\n%d\n", packettype, svr.u.Size)
 		length := len(base)
 		packet := fmt.Sprintf("%d\n%s\n", length, base)
 		packet_bytes := []byte(packet)
