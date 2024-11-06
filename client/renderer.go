@@ -2,12 +2,13 @@ package main
 
 import (
 	"errors"
-	"github.com/gdamore/tcell/v2"
+	"fmt"
 	"gommo/shared"
-	"log"
-	"os"
+"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/gdamore/tcell/v2"
 )
 
 func drawText(s tcell.Screen, x1, y1, x2, y2 int, style tcell.Style, text string) {
@@ -62,35 +63,30 @@ func drawBox(s tcell.Screen, x1, y1, x2, y2 int, style tcell.Style, text string)
 	drawText(s, x1+1, y1+1, x2-1, y2-1, style, text)
 }
 
-func DrawScreen(s tcell.Screen, defStyle tcell.Style, size int) {
-	s.Show()
-	s.Sync()
+
+func NewScreen() (tcell.Screen, tcell.Style, error) {
+    s, err := tcell.NewScreen()
+    if err != nil {
+        return nil, tcell.Style{}, fmt.Errorf("failed to create new screen: %w", err)
+    }
+    if err := s.Init(); err != nil {
+        return nil, tcell.Style{}, fmt.Errorf("failed to initialize screen: %w", err)
+    }
+    defStyle := tcell.StyleDefault.Background(tcell.ColorReset).Foreground(tcell.ColorReset)
+    s.SetStyle(defStyle)
+    s.EnablePaste()
+    s.Clear()
+    return s, defStyle, nil
 }
 
-func NewScreen() (tcell.Screen, tcell.Style) {
-	s, err := tcell.NewScreen()
-	if err != nil {
-		log.Fatalf("%+v", err)
-	}
-	if err := s.Init(); err != nil {
-		log.Fatalf("%+v", err)
-	}
-	defStyle := tcell.StyleDefault.Background(tcell.ColorReset).Foreground(tcell.ColorReset)
-	s.SetStyle(defStyle)
-	// s.EnableMouse()
-	s.EnablePaste()
-	// Clear screen
-	s.Clear()
-	return s, defStyle
-}
+
+
 
 func Render(client Client, defStyle tcell.Style, s tcell.Screen, sigChan chan os.Signal) error {
 	size := client.u.Size
 
-	cMap := client.u.Map
 	var newMap shared.Universe
 	newMap.Size = size
-	DrawScreen(s, defStyle, size) // Draw the initial screen
 	//	drawBox(s, 0, 0, size, size, defStyle, "")
 	drawBox(s, 0, 0, client.u.Size, client.u.Size, defStyle, "")
 
@@ -98,35 +94,10 @@ func Render(client Client, defStyle tcell.Style, s tcell.Screen, sigChan chan os
 	case <-sigChan:
 		return nil
 	default:
-		for index, cell := range cMap {
-			if (index == 0 || index % client.u.Size == 0){
-				continue
-			}
-			s.Show()
-
-			yPos := index / size
-			xPos := index % size
-
-			var renderedCell rune
-
-			switch cell {
-			case 0:
-				renderedCell = ' '
-			case 1:
-				renderedCell = 'L' // make these fancy runes later
-			case 2:
-				renderedCell = 'W'
-			case 3:
-				renderedCell = 'M'
-			case 4:
-				renderedCell = 'P'
-			default:
-				renderedCell = 'X'
-			}
-		
-			s.SetContent(xPos, yPos, renderedCell, nil, defStyle)
-		}
+		update_map(client, s, defStyle) // updates screen with map	
 		s.Show()
+
+		//buf := make([]byte, 1024)
 		for {
 			ev := s.PollEvent()
 			switch ev := ev.(type) {
@@ -134,9 +105,68 @@ func Render(client Client, defStyle tcell.Style, s tcell.Screen, sigChan chan os
 				if ev.Key() == tcell.KeyEscape || ev.Key() == tcell.KeyCtrlC {
 					signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 					return errors.New("Exiting Screen")
+				} else if ev.Key() == tcell.KeyUp {
+					step(&client, shared.Up)
+				} else if ev.Key() == tcell.KeyDown {
+					step(&client, shared.Down)
+
+				} else if ev.Key() == tcell.KeyLeft {
+					step(&client, shared.Left)
+
+				} else if ev.Key() == tcell.KeyRight{
+					step(&client, shared.Right)
+					
 				}
+
+				build_request_packet(client, shared.PacketTypeMove)
+				//_, err := client.conn.Write(build_request_packet(client, shared.PacketTypeMove))
+				//if err != nil {
+				//	fmt.Println(err)
+				//	return err
+				//}
+				//n, err := client.conn.Read(buf)
+				//if err != nil {
+				//	fmt.Println(err)
+				//	return err
+				
+				//handle_response_behavior(buf[:n], &client)
+				
 			}
+			fmt.Println(client.location)
+			update_map(client, s, defStyle)
+			
 		}
 	}
 	return nil
+}
+// function to iterate through the map and update the screen given what is at each cell  
+func update_map(client Client, s tcell.Screen, defStyle tcell.Style){ 
+	for index, cell := range client.u.Map {
+		if (index == 0 || index % client.u.Size == 0){
+			continue
+		}
+
+		yPos := index / client.u.Size
+		xPos := index % client.u.Size
+
+		var renderedCell rune
+
+		switch cell {
+		case 0:
+			renderedCell = ' '
+		case 1:
+			renderedCell = 'L' // make these fancy runes later
+		case 2:
+			renderedCell = 'W'
+		case 3:
+			renderedCell = 'M'
+		case 4:
+			renderedCell = 'P'
+		default:
+			renderedCell = 'X'
+		}
+		
+		s.SetContent(xPos, yPos, renderedCell, nil, defStyle)
+		s.Show()
+	}
 }

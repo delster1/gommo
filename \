@@ -62,7 +62,7 @@ func main() {
 		go handleConnection(conn, &svr)
 	}
 }
-// sets up initial connection
+// handles incoming connections
 func handleConnection(conn net.Conn, svr *Server) {
 	defer conn.Close()
 	buf := make([]byte, 1024)
@@ -104,6 +104,7 @@ func handleConnection(conn net.Conn, svr *Server) {
 			return
 		}
 		// authenticate user location 
+		fmt.Println("Recieved move packet")
 		n, err = conn.Read(buf)
 		if err != nil {
 			fmt.Println(err)
@@ -117,6 +118,7 @@ func handleConnection(conn net.Conn, svr *Server) {
 		fmt.Printf("Recieved final config packet %s\n", packettype)
 		_, err = handle_request_behavior(packettype, buf, svr)
 
+		// listen for incoming requests and handle them
 	}
 
 }
@@ -171,10 +173,11 @@ func handle_request_behavior(packettype shared.PacketType, buf []byte, svr *Serv
 			fmt.Println("Recieved empty move packet")
 			svr.u.Map[svr.u.Size/2] = shared.User
 		} else {
-			sessionid := parts[3]
 			x, err :=  strconv.Atoi(parts[4])
 			y, err := strconv.Atoi(parts[5])
+			sessionid := parts[3]
 			fmt.Sprintf("Recieved move (%s):%d, %d\n",sessionid, x, y)
+			// sessionid := parts[3]
 			 
 			if err != nil {
 				fmt.Println(err)

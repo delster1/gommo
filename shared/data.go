@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"io"
 )
-type Dir struct{
-	Up int
-	Down int
-	Left int
-	Right int
-}
+type Dir int32 
+
+const (
+	Up Dir = iota
+	Down 
+	Left
+	Right 
+)
 
 type Player struct {
 	SessionID  string
@@ -30,7 +32,14 @@ const (
 )
 
 type Cell int32 // SEE BELOW vvvvv
+const (
+	Empty Cell = iota
+	Land
+	Water
+	Mountains
+	User
 
+)
 // 0 for empty
 // 1 for land
 // 2 for water

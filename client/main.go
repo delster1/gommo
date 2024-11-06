@@ -13,57 +13,59 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 )
-
-func build_request_packet(packetType shared.PacketType) []byte {
+func build_configure_packet( packetType shared.PacketType) []byte {
 	switch packetType {
 	case shared.PacketTypeConnect:
 		base := fmt.Sprintf("gommo\n%c\n", packetType)
 		packetLen := len(base)
-		packet := fmt.Sprintf("%d\n%s", packetLen, base)
+		packet := fmt.Sprintf("%d\n%s\n", packetLen, base)
 		return []byte(packet)
 	case shared.PacketTypeMap:
 		// MARK: TBI
 		base := fmt.Sprintf("gommo\n%c\n", packetType)
 		packetLen := len(base)
-		packet := fmt.Sprintf("%d\n%s", packetLen, base)
+		packet := fmt.Sprintf("%d\n%s\n", packetLen, base)
 		return []byte(packet)
 	case shared.PacketTypeMove:
 		// TODO:
-		return []byte("gommo\nE\n")
+		base := fmt.Sprintf("gommo\n%c\n", packetType)
+		packet := fmt.Sprintf("%d\n%s\n", len(base), base)
+		fmt.Println(len(base))
+		return []byte(packet)
 	case shared.PacketTypeDisconnect:
 		return []byte("X")
 	default:
 		return []byte("gommo\nE\n")
 	}
 }
-
-func handle_connection_response(response []byte) (string, error) {
-	response_str := string(response)
-	packet_parts := strings.Split(response_str, "\n")
-	if packet_parts[1] != "gommo" {
-		fmt.Println("bad packet recieved")
-		return "", errors.New("Bad Packet Recieved to Connection")
-	}
-	switch packet_parts[2] {
-	case "C":
-		sessionID := packet_parts[3]
-		return sessionID, nil
+func build_request_packet(c Client, packetType shared.PacketType) []byte {
+	switch packetType {
+	case shared.PacketTypeConnect:
+		panic("Connect packet should not be sent by client at this stage")
+	case shared.PacketTypeMap:
+		panic("User shouldn't be sending map requests - only move requests!")
+	case shared.PacketTypeMove:
+		// custom move packet - base, sessionid, x, y
+		base := fmt.Sprintf("gommo\n%c\n%s\n%d\n%d\n", packetType, c.SessionID, c.location.x, c.location.y)
+		packet := fmt.Sprintf("%d\n%s", len(base), base)
+		return []byte(packet)
 	default:
-		errorString := fmt.Sprintf("Recieved incorrect packet to handle connection's response, %s\n", packet_parts[2])
-		return "", errors.New(errorString)
+		return []byte("gommo\nE\n")
 	}
 }
-func handle_response_behavior(response []byte) (interface{}, error) {
+
+
+func handle_setup_behavior(response []byte) (interface{}, error) {
 	response_str := string(response)
 	packet_parts := strings.Split(response_str, "\n")
 	// packet_len := packet_parts[0]
-	if packet_parts[1] != "gommo" || packet_parts[2] == "C" {
-		errorString := fmt.Sprintf("bad packet recieved %b", packet_parts[1])
+	if packet_parts[1] != "gommo" {
+		errorString := fmt.Sprintf("bad packet recieved %s",response_str)
 		return "", errors.New(errorString)
 	}
 	switch packet_parts[2] {
-	case "M":
-		fmt.Printf("Received Map Packet: %b\n", response)
+
+	case "M": // map packet
 		mapDataStart := strings.Index(response_str, "\nM\n") + 7
 		universeBytes, err := shared.DecompressMapData(response[mapDataStart:])
 		if err != nil {
@@ -83,6 +85,17 @@ func handle_response_behavior(response []byte) (interface{}, error) {
 			return "", err
 		}
 		return clientUniverse, nil
+	case "L": // client recieved move packet
+		if packet_parts[0] == "8" {
+			return "", nil	
+		} else {
+			return "", nil
+		}
+	case "C":
+		var sessionID string
+		sessionID = packet_parts[3]
+		return sessionID, nil
+
 	default:
 		return "to be implemented", errors.New("To Be Implemented")
 	}
@@ -96,16 +109,21 @@ func main() {
 		fmt.Println(err)
 		return
 	}
-	s, defStyle := NewScreen()
-	var screenPointer *tcell.Screen = &s
+	s, err := tcell.NewScreen()
+	defStyle := tcell.StyleDefault
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("HELOOOOO")
 	defer conn.Close()
+
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
 	errChan := make(chan error, 1)
-
-	client := BuildClient(conn, screenPointer, errChan) // builds client w/ sessionid & stuff given connection
+	// BuildClient collects sessionID, universe, and other info from server
+	client := BuildClient(conn, s, errChan)
 	fmt.Println(client)
 	buf := make([]byte, 1024)
 
@@ -119,16 +137,17 @@ func main() {
 	defer quit()
 		go func() {
 		for {
-			n, err := conn.Read(buf)
+			x, err := conn.Read(buf)
 			if err != nil {
 				errChan <- err
 				return
 			}
-			fmt.Printf("Received from server:%b\n", buf[:n])
+			fmt.Printf("QUITTING from server:%b\n", buf[:x])
 		}
 	}()
 	fmt.Println("running renderer")
-	err = Render(client, defStyle, *client.screen, sigChan)
+	//MAIN LOOP IN RENDER
+	err = Render(client, defStyle, client.screen, sigChan)
 	if err != nil {
 		return
 	}
