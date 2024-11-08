@@ -7,7 +7,6 @@ import (
 	"strings"
 	"strconv"
 
-	"github.com/gdamore/tcell/v2"
 )
 
 type Location struct {
@@ -21,7 +20,6 @@ type Client struct {
 	SessionID   string
 	conn        net.Conn
 	isConnected bool
-	screen      tcell.Screen
 }
 func step(c *Client, direction shared.Dir) {
     old_idx := c.u.Size * c.location.y + c.location.x
@@ -47,7 +45,6 @@ func step(c *Client, direction shared.Dir) {
     c.u.Map[old_idx] = shared.Empty   // Set the old cell to Empty
     c.u.Map[idx] = shared.User        // Set the new cell to User
 }
-
 func handle_response_behavior(response []byte, c *Client) {
 	response_str := string(response)
 	packet_parts := strings.Split(response_str, "\n")
@@ -90,7 +87,25 @@ func handle_response_behavior(response []byte, c *Client) {
 		fmt.Println("Unknown packet type")
 	}
 }
-func BuildClient(conn net.Conn, screen tcell.Screen, errChan chan<- error) (c Client) {
+func build_request_packet(c Client, packetType shared.PacketType) []byte {
+	switch packetType {
+	case shared.PacketTypeConnect:
+		panic("Connect packet should not be sent by client at this stage")
+	case shared.PacketTypeMap:
+		panic("User shouldn't be sending map requests - only move requests!")
+	case shared.PacketTypeMove:
+		// custom move packet - base, sessionid, x, y
+		base := fmt.Sprintf("gommo\n%c\n%s\n%d\n%d\n", packetType, c.SessionID, c.location.x, c.location.y)
+		packet := fmt.Sprintf("%d\n%s", len(base), base)
+		return []byte(packet)
+	default:
+		return []byte("gommo\nE\n")
+	}
+}
+
+
+
+func BuildClient(conn net.Conn,errChan chan<- error) (c Client) {
 	var universe shared.Universe
 	buf := make([]byte, 1024)
 	_, err := conn.Write(build_configure_packet(shared.PacketTypeConnect))
@@ -151,7 +166,7 @@ func BuildClient(conn net.Conn, screen tcell.Screen, errChan chan<- error) (c Cl
 	fmt.Println("SENT MOVE PACKET")
 	// recieve and check move packet validation
 	print("BUILT CLIENT")
-	c = Client{u: shared.Universe{Map: universe.Map, Size: universe.Size}, location: Location{x: universe.Size / 2 , y: universe.Size / 2}, SessionID: string(sessionID), conn: conn, isConnected: true, screen: screen}
+	c = Client{u: shared.Universe{Map: universe.Map, Size: universe.Size}, location: Location{x: universe.Size / 2 , y: universe.Size / 2}, SessionID: string(sessionID), conn: conn, isConnected: true }
 	idx := c.u.Size * c.location.y + c.location.x
 	c.u.Map[idx] = 'P' 
 	

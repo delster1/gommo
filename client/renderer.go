@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"log"
 	"fmt"
 	"gommo/shared"
 "os"
@@ -82,13 +83,35 @@ func NewScreen() (tcell.Screen, tcell.Style, error) {
 
 
 
-func Render(client Client, defStyle tcell.Style, s tcell.Screen, sigChan chan os.Signal) error {
-	size := client.u.Size
+func Render(client Client,  sigChan chan os.Signal) error {
+	s, err := tcell.NewScreen()
+	if err != nil {
+		log.Fatalf("%+v", err)
+	}
+	if err := s.Init(); err != nil {
+		log.Fatalf("%+v", err)
+	}
+	s.EnableMouse()
+	s.EnablePaste()
+	s.Clear()
 
+	defStyle := tcell.StyleDefault
+
+	s.SetStyle(defStyle)
+	drawBox(s, 0, 0, client.u.Size, client.u.Size, defStyle, "")
+	quit := func() {
+		maybePanic := recover()
+		s.Fini()
+			panic(maybePanic)
+	}
+	defer quit()
+		
+	size := client.u.Size
+	fmt.Println("INSIDE RENDERER")
 	var newMap shared.Universe
 	newMap.Size = size
 	//	drawBox(s, 0, 0, size, size, defStyle, "")
-	drawBox(s, 0, 0, client.u.Size, client.u.Size, defStyle, "")
+	
 
 	select {
 	case <-sigChan:
@@ -96,9 +119,9 @@ func Render(client Client, defStyle tcell.Style, s tcell.Screen, sigChan chan os
 	default:
 		update_map(client, s, defStyle) // updates screen with map	
 		s.Show()
-
 		//buf := make([]byte, 1024)
 		for {
+			fmt.Println("INSIDE RENDERER LOOP")
 			ev := s.PollEvent()
 			switch ev := ev.(type) {
 			case *tcell.EventKey:
@@ -167,6 +190,5 @@ func update_map(client Client, s tcell.Screen, defStyle tcell.Style){
 		}
 		
 		s.SetContent(xPos, yPos, renderedCell, nil, defStyle)
-		s.Show()
 	}
 }

@@ -38,7 +38,6 @@ func iterate_over_cells(u shared.Universe) (new_u shared.Universe) {
 	}
 	return new_u
 }
-
 func main() {
 	server_u := create_universe(10)
 	svr := CreateServer(8080, server_u)

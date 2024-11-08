@@ -11,7 +11,6 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/gdamore/tcell/v2"
 )
 func build_configure_packet( packetType shared.PacketType) []byte {
 	switch packetType {
@@ -38,23 +37,6 @@ func build_configure_packet( packetType shared.PacketType) []byte {
 		return []byte("gommo\nE\n")
 	}
 }
-func build_request_packet(c Client, packetType shared.PacketType) []byte {
-	switch packetType {
-	case shared.PacketTypeConnect:
-		panic("Connect packet should not be sent by client at this stage")
-	case shared.PacketTypeMap:
-		panic("User shouldn't be sending map requests - only move requests!")
-	case shared.PacketTypeMove:
-		// custom move packet - base, sessionid, x, y
-		base := fmt.Sprintf("gommo\n%c\n%s\n%d\n%d\n", packetType, c.SessionID, c.location.x, c.location.y)
-		packet := fmt.Sprintf("%d\n%s", len(base), base)
-		return []byte(packet)
-	default:
-		return []byte("gommo\nE\n")
-	}
-}
-
-
 func handle_setup_behavior(response []byte) (interface{}, error) {
 	response_str := string(response)
 	packet_parts := strings.Split(response_str, "\n")
@@ -109,12 +91,6 @@ func main() {
 		fmt.Println(err)
 		return
 	}
-	s, err := tcell.NewScreen()
-	defStyle := tcell.StyleDefault
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
 	fmt.Println("HELOOOOO")
 	defer conn.Close()
 
@@ -123,19 +99,11 @@ func main() {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	errChan := make(chan error, 1)
 	// BuildClient collects sessionID, universe, and other info from server
-	client := BuildClient(conn, s, errChan)
+	client := BuildClient(conn, errChan)
 	fmt.Println(client)
 	buf := make([]byte, 1024)
 
-	quit := func() {
-		maybePanic := recover()
-		s.Fini()
-		if maybePanic != nil {
-			panic(maybePanic)
-		}
-	}
-	defer quit()
-		go func() {
+	go func() {
 		for {
 			x, err := conn.Read(buf)
 			if err != nil {
@@ -147,7 +115,7 @@ func main() {
 	}()
 	fmt.Println("running renderer")
 	//MAIN LOOP IN RENDER
-	err = Render(client, defStyle, client.screen, sigChan)
+	err = Render(client , sigChan)
 	if err != nil {
 		return
 	}
