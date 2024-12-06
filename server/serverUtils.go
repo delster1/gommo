@@ -10,7 +10,6 @@ type Server struct {
 	Playerlist  map[string]*shared.Player
 	port        int
 	u           shared.Universe
-	Connections []Connection
 }
 type Connection struct {
 	SessionID  string
@@ -18,7 +17,7 @@ type Connection struct {
 }
 
 func CreateServer(port int, u shared.Universe) (s Server) {
-	s = Server{status: true, Playerlist: nil, port: port, u: u}
+	s = Server{status: true, Playerlist: nil, port: port, u: u }
 	return s
 }
 

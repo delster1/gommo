@@ -45,47 +45,56 @@ func step(c *Client, direction shared.Dir) {
     c.u.Map[old_idx] = shared.Empty   // Set the old cell to Empty
     c.u.Map[idx] = shared.User        // Set the new cell to User
 }
-func handle_response_behavior(response []byte, c *Client) {
+func handle_response_behavior(response []byte,n int,  c *Client) error {
 	response_str := string(response)
 	packet_parts := strings.Split(response_str, "\n")
-
-	switch packet_parts[1] {
+	switch packet_parts[2] {
+	case "S": // success packet - case of no err and nothing for client to do 
+		return nil
 	case "M":
 		var serverUniverse shared.Universe
-
-		mapDataStart := strings.Index(response_str, "\nM\n") + 7
-		universeBytes, err := shared.DecompressMapData(response[mapDataStart:])
+		fmt.Println(serverUniverse)
+		// response_len, err := strconv.Atoi(packet_parts[0])
+		// if err != nil {
+		// 	fmt.Println(err)
+		// 	return err
+		// }
+		mapDataStart := strings.Index(response_str, "\nM\n") + 6
+		universeBytes, err := shared.DecompressMapData(response[mapDataStart:n])
 		if err != nil {
-			errStr := fmt.Sprintf("Error decompressing map, %s", err)
+			errStr := fmt.Sprintf("Error decompressing map, %s\n", err)
 			fmt.Println(errStr)
-			return 
+			return err 
 		}
 		mapSize, err := strconv.Atoi(packet_parts[3])
 		if err != nil {
 			fmt.Println(err)
-			return
+			return err
 		}
 		serverUniverse, err = shared.ConvertBytesToMap(mapSize, universeBytes)
 		if err != nil {
 			errStr := fmt.Sprintf("Error converting bytes to map %s", err)
 			fmt.Println(errStr)
-			return
+			return err
 		}
 		// Update the client's universe with the server's universe 
-		for i, cell := range serverUniverse.Map {
-			if c.u.Map[i] != cell {
+		// for i, cell := range serverUniverse.Map {
+			// if c.u.Map[i] != cell && cell != 4 {
 
-				c.u.Map[i] = cell
-			}
-		}
+				// c.u.Map[i] = cell
+			// }
+		// }
 
 			
 		
 	case "L":
 		panic("Recieved move packet from server???")	
+		return nil
 	default:
 		fmt.Println("Unknown packet type")
+		panic("Unknown packet type")
 	}
+	return nil
 }
 func build_request_packet(c Client, packetType shared.PacketType) []byte {
 	switch packetType {
@@ -95,7 +104,11 @@ func build_request_packet(c Client, packetType shared.PacketType) []byte {
 		panic("User shouldn't be sending map requests - only move requests!")
 	case shared.PacketTypeMove:
 		// custom move packet - base, sessionid, x, y
-		base := fmt.Sprintf("gommo\n%c\n%s\n%d\n%d\n", packetType, c.SessionID, c.location.x, c.location.y)
+		base := fmt.Sprintf("gommo\n%c\n%s\n%d\n", packetType, c.SessionID, c.location.x + c.u.Size * c.location.y)
+		packet := fmt.Sprintf("%d\n%s", len(base), base)
+		return []byte(packet)
+	case shared.PacketTypeDisconnect:
+		base := fmt.Sprintf("gommo\n%c\n%s\n", packetType, c.SessionID)
 		packet := fmt.Sprintf("%d\n%s", len(base), base)
 		return []byte(packet)
 	default:
@@ -113,13 +126,13 @@ func BuildClient(conn net.Conn,errChan chan<- error) (c Client) {
 		fmt.Println(err)
 		return
 	} // sends connection request
-
+	fmt.Println("sent connect packet")
 	n, err := conn.Read(buf)
 	if err != nil {
 		fmt.Println(err)
 		return
 	} // loads buf with connection info from server
-
+	fmt.Println("recieved connect packet")
 	result, err := handle_setup_behavior(buf[:n])
 	if err != nil {
 		fmt.Println(err)
@@ -137,6 +150,7 @@ func BuildClient(conn net.Conn,errChan chan<- error) (c Client) {
 		fmt.Println(err)
 		return
 	}
+	fmt.Println("SENT MAP")
 	n, err = conn.Read(buf)
 	// recieve map response
 	if err != nil {

@@ -101,18 +101,7 @@ func main() {
 	// BuildClient collects sessionID, universe, and other info from server
 	client := BuildClient(conn, errChan)
 	fmt.Println(client)
-	buf := make([]byte, 1024)
 
-	go func() {
-		for {
-			x, err := conn.Read(buf)
-			if err != nil {
-				errChan <- err
-				return
-			}
-			fmt.Printf("QUITTING from server:%b\n", buf[:x])
-		}
-	}()
 	fmt.Println("running renderer")
 	//MAIN LOOP IN RENDER
 	err = Render(client , sigChan)
@@ -125,6 +114,7 @@ func main() {
 		case <-sigChan:
 			// Gracefully handle the signal (Ctrl+C or termination)
 			fmt.Println("Exiting, closing connection...")
+			client.conn.Write(build_request_packet(client, shared.PacketTypeDisconnect))
 			conn.Close()
 			return
 		case err := <-errChan:

@@ -81,9 +81,8 @@ func NewScreen() (tcell.Screen, tcell.Style, error) {
 }
 
 
+func initScreen() (tcell.Screen,  tcell.Style ) {
 
-
-func Render(client Client,  sigChan chan os.Signal) error {
 	s, err := tcell.NewScreen()
 	if err != nil {
 		log.Fatalf("%+v", err)
@@ -91,14 +90,16 @@ func Render(client Client,  sigChan chan os.Signal) error {
 	if err := s.Init(); err != nil {
 		log.Fatalf("%+v", err)
 	}
-	s.EnableMouse()
-	s.EnablePaste()
-	s.Clear()
 
 	defStyle := tcell.StyleDefault
-
+	s.EnablePaste()
 	s.SetStyle(defStyle)
-	drawBox(s, 0, 0, client.u.Size, client.u.Size, defStyle, "")
+	return s, defStyle
+}
+
+func Render(client Client,  sigChan chan os.Signal) error {
+	s, defStyle := initScreen()
+	size := client.u.Size
 	quit := func() {
 		maybePanic := recover()
 		s.Fini()
@@ -106,22 +107,20 @@ func Render(client Client,  sigChan chan os.Signal) error {
 	}
 	defer quit()
 		
-	size := client.u.Size
 	fmt.Println("INSIDE RENDERER")
-	var newMap shared.Universe
-	newMap.Size = size
-	//	drawBox(s, 0, 0, size, size, defStyle, "")
+	drawBox(s, 0, 0, size, size, defStyle, "")
 	
-
+	drawBox(s, 0, 0, client.u.Size, client.u.Size, defStyle, "")
 	select {
 	case <-sigChan:
 		return nil
 	default:
 		update_map(client, s, defStyle) // updates screen with map	
-		s.Show()
-		//buf := make([]byte, 1024)
+		 s.Show()
 		for {
-			fmt.Println("INSIDE RENDERER LOOP")
+			 s.Show()
+			buf := make([]byte, 1024)
+
 			ev := s.PollEvent()
 			switch ev := ev.(type) {
 			case *tcell.EventKey:
@@ -140,29 +139,29 @@ func Render(client Client,  sigChan chan os.Signal) error {
 					step(&client, shared.Right)
 					
 				}
-
-				build_request_packet(client, shared.PacketTypeMove)
-				//_, err := client.conn.Write(build_request_packet(client, shared.PacketTypeMove))
-				//if err != nil {
-				//	fmt.Println(err)
-				//	return err
-				//}
-				//n, err := client.conn.Read(buf)
-				//if err != nil {
-				//	fmt.Println(err)
-				//	return err
+				fmt.Printf("(%d, %d)\n", client.location.x, client.location.y)
+				n, err := client.conn.Write(build_request_packet(client, shared.PacketTypeMove))
 				
-				//handle_response_behavior(buf[:n], &client)
+				if err != nil {
+					fmt.Println(err)
+					return err
+				}
+				_, err = client.conn.Read(buf)
+				if err != nil {
+					fmt.Println(err)
+
+					return err
+				}
+				handle_response_behavior(buf[:],n, &client)
 				
 			}
-			fmt.Println(client.location)
+			s.Clear()
 			update_map(client, s, defStyle)
 			
 		}
-	}
-	return nil
+	}	
 }
-// function to iterate through the map and update the screen given what is at each cell  
+
 func update_map(client Client, s tcell.Screen, defStyle tcell.Style){ 
 	for index, cell := range client.u.Map {
 		if (index == 0 || index % client.u.Size == 0){
@@ -189,6 +188,6 @@ func update_map(client Client, s tcell.Screen, defStyle tcell.Style){
 			renderedCell = 'X'
 		}
 		
-		s.SetContent(xPos, yPos, renderedCell, nil, defStyle)
+		s.SetContent(xPos-1, yPos-1, renderedCell, nil, defStyle)
 	}
 }

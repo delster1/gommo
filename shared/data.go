@@ -29,6 +29,7 @@ const (
 	PacketTypeMove       PacketType = 'L'
 	PacketTypeDisconnect PacketType = 'X'
 	PacketTypeErr        PacketType = 'E'
+	PacketTypeSuccess	PacketType = 'S'
 )
 
 type Cell int32 // SEE BELOW vvvvv
@@ -77,26 +78,37 @@ func CompressMapData(data []byte) ([]byte, error) {
 }
 
 func DecompressMapData(data []byte) ([]byte, error) {
-	buf := bytes.NewReader(data)
-	reader, err := zlib.NewReader(buf)
-	if err != nil {
-		return nil, err
-	}
-	var out bytes.Buffer
-	_, err = io.Copy(&out, reader)
-	if err != nil {
-		return nil, err
-	}
-	reader.Close()
-	return out.Bytes(), nil
+    fmt.Printf("%s\n",data) // Log data length
+    
+    buf := bytes.NewReader(data)
+    reader, err := zlib.NewReader(buf)
+    if err != nil {
+        fmt.Printf("creating newreader, %s", err)
+        return nil, err
+    }
+    defer reader.Close()
+
+    var out bytes.Buffer
+    _, err = io.Copy(&out, reader)
+    if err != nil {
+        fmt.Printf("- copying to out, %s", err)
+		errStr := fmt.Sprintf("%b\nof len %d", data, len(data))
+		panic(errStr)
+        return nil, err
+    }
+
+    decompressedData := out.Bytes()
+    fmt.Printf("b%d\n", len(decompressedData)) // Log decompressed data length
+    
+    return decompressedData, nil
 }
+
 func ConvertBytesToMap(mapSize int, data []byte) (Universe, error) {
 
 	u := Universe{
 		Map:  make([]Cell, mapSize*mapSize),
 		Size: mapSize,
 	}
-	fmt.Println("created universe")
 	buf := bytes.NewReader(data)
 	for i := range u.Map {
 		if err := binary.Read(buf, binary.LittleEndian, &u.Map[i]); err != nil {
