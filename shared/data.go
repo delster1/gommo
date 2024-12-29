@@ -92,13 +92,11 @@ func DecompressMapData(data []byte) ([]byte, error) {
     _, err = io.Copy(&out, reader)
     if err != nil {
         fmt.Printf("- copying to out, %s", err)
-		errStr := fmt.Sprintf("%b\nof len %d", data, len(data))
-		panic(errStr)
-        return nil, err
+		errStr := fmt.Errorf("ERROR copying %s\nof len %d, %s", data, len(data), err)
+        return nil, errStr
     }
 
     decompressedData := out.Bytes()
-    fmt.Printf("b%d\n", len(decompressedData)) // Log decompressed data length
     
     return decompressedData, nil
 }

@@ -4,9 +4,8 @@ import (
 	"fmt"
 	"gommo/shared"
 	"net"
-	"strings"
 	"strconv"
-
+	"strings"
 )
 
 type Location struct {
@@ -21,74 +20,73 @@ type Client struct {
 	conn        net.Conn
 	isConnected bool
 }
+
 func step(c *Client, direction shared.Dir) {
-    old_idx := c.u.Size * c.location.y + c.location.x
+	old_idx := c.u.Size*c.location.y + c.location.x
 
-    // Update the location based on direction
-    switch direction {
-    case shared.Up:
-        c.location.y = (c.location.y - 1 + c.u.Size) % c.u.Size
-    case shared.Down:
-        c.location.y = (c.location.y + 1) % c.u.Size
-    case shared.Left:
-        c.location.x = (c.location.x - 1 + c.u.Size) % c.u.Size
-    case shared.Right:
-        c.location.x = (c.location.x + 1) % c.u.Size
-    default:
-        return // No movement
-    }
+	// Update the location based on direction
+	switch direction {
+	case shared.Up:
+		c.location.y = (c.location.y - 1 + c.u.Size) % c.u.Size
+	case shared.Down:
+		c.location.y = (c.location.y + 1) % c.u.Size
+	case shared.Left:
+		c.location.x = (c.location.x - 1 + c.u.Size) % c.u.Size
+	case shared.Right:
+		c.location.x = (c.location.x + 1) % c.u.Size
+	default:
+		return // No movement
+	}
 
-    // Calculate the new index after movement
-    idx := c.u.Size * c.location.y + c.location.x
+	// Calculate the new index after movement
+	idx := c.u.Size*c.location.y + c.location.x
 
-    // Update the map logically
-    c.u.Map[old_idx] = shared.Empty   // Set the old cell to Empty
-    c.u.Map[idx] = shared.User        // Set the new cell to User
+	// Update the map logically
+	c.u.Map[old_idx] = shared.Empty // Set the old cell to Empty
+	c.u.Map[idx] = shared.User      // Set the new cell to User
 }
-func handle_response_behavior(response []byte,n int,  c *Client) error {
+func handle_response_behavior(response []byte, n int, c *Client) error {
 	response_str := string(response)
 	packet_parts := strings.Split(response_str, "\n")
 	switch packet_parts[2] {
-	case "S": // success packet - case of no err and nothing for client to do 
+	case "S": // success packet - case of no err and nothing for client to do
 		return nil
 	case "M":
-		var serverUniverse shared.Universe
-		fmt.Println(serverUniverse)
+		// var serverUniverse shared.Universe
+		// fmt.Println(serverUniverse)
 		// response_len, err := strconv.Atoi(packet_parts[0])
 		// if err != nil {
 		// 	fmt.Println(err)
 		// 	return err
 		// }
 		mapDataStart := strings.Index(response_str, "\nM\n") + 6
-		universeBytes, err := shared.DecompressMapData(response[mapDataStart:n])
+		universeBytes, err := shared.DecompressMapData(response[mapDataStart:])
 		if err != nil {
 			errStr := fmt.Sprintf("Error decompressing map, %s\n", err)
 			fmt.Println(errStr)
-			return err 
+			return err
 		}
 		mapSize, err := strconv.Atoi(packet_parts[3])
 		if err != nil {
 			fmt.Println(err)
 			return err
 		}
-		serverUniverse, err = shared.ConvertBytesToMap(mapSize, universeBytes)
+		_, err = shared.ConvertBytesToMap(mapSize, universeBytes)
 		if err != nil {
 			errStr := fmt.Sprintf("Error converting bytes to map %s", err)
 			fmt.Println(errStr)
 			return err
 		}
-		// Update the client's universe with the server's universe 
+		// Update the client's universe with the server's universe
 		// for i, cell := range serverUniverse.Map {
-			// if c.u.Map[i] != cell && cell != 4 {
+		// if c.u.Map[i] != cell && cell != 4 {
 
-				// c.u.Map[i] = cell
-			// }
+		// c.u.Map[i] = cell
+		// }
 		// }
 
-			
-		
 	case "L":
-		panic("Recieved move packet from server???")	
+		panic("Recieved move packet from server???")
 		return nil
 	default:
 		fmt.Println("Unknown packet type")
@@ -104,7 +102,7 @@ func build_request_packet(c Client, packetType shared.PacketType) []byte {
 		panic("User shouldn't be sending map requests - only move requests!")
 	case shared.PacketTypeMove:
 		// custom move packet - base, sessionid, x, y
-		base := fmt.Sprintf("gommo\n%c\n%s\n%d\n", packetType, c.SessionID, c.location.x + c.u.Size * c.location.y)
+		base := fmt.Sprintf("gommo\n%c\n%s\n%d\n", packetType, c.SessionID, c.location.x+c.u.Size*c.location.y)
 		packet := fmt.Sprintf("%d\n%s", len(base), base)
 		return []byte(packet)
 	case shared.PacketTypeDisconnect:
@@ -116,9 +114,7 @@ func build_request_packet(c Client, packetType shared.PacketType) []byte {
 	}
 }
 
-
-
-func BuildClient(conn net.Conn,errChan chan<- error) (c Client) {
+func BuildClient(conn net.Conn, errChan chan<- error) (c Client) {
 	var universe shared.Universe
 	buf := make([]byte, 1024)
 	_, err := conn.Write(build_configure_packet(shared.PacketTypeConnect))
@@ -139,8 +135,8 @@ func BuildClient(conn net.Conn,errChan chan<- error) (c Client) {
 		return
 	} // grabs sessionid from buf
 
-	sessionID, ok := result.(string) 
-	if !ok { 
+	sessionID, ok := result.(string)
+	if !ok {
 		fmt.Println("Error converting sessionID")
 		return
 	}
@@ -167,9 +163,8 @@ func BuildClient(conn net.Conn,errChan chan<- error) (c Client) {
 		fmt.Println(err)
 		return
 	}
-	
 
-	// send move packet with client's initial location (always midpoint)	
+	// send move packet with client's initial location (always midpoint)
 	_, err = conn.Write(build_configure_packet(shared.PacketTypeMove))
 	if err != nil {
 		errString := fmt.Sprintf("Error handling map %s\n", err)
@@ -180,10 +175,9 @@ func BuildClient(conn net.Conn,errChan chan<- error) (c Client) {
 	fmt.Println("SENT MOVE PACKET")
 	// recieve and check move packet validation
 	print("BUILT CLIENT")
-	c = Client{u: shared.Universe{Map: universe.Map, Size: universe.Size}, location: Location{x: universe.Size / 2 , y: universe.Size / 2}, SessionID: string(sessionID), conn: conn, isConnected: true }
-	idx := c.u.Size * c.location.y + c.location.x
-	c.u.Map[idx] = 'P' 
-	
+	c = Client{u: shared.Universe{Map: universe.Map, Size: universe.Size}, location: Location{x: universe.Size / 2, y: universe.Size / 2}, SessionID: string(sessionID), conn: conn, isConnected: true}
+	idx := c.u.Size*c.location.y + c.location.x
+	c.u.Map[idx] = 'P'
 
 	return c
 }

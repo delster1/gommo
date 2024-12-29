@@ -211,6 +211,7 @@ func handle_connection_request(packettype shared.PacketType, svr *Server, con ne
 		return errors.New(errorString)
 	}
 }
+
 func handle_request_behavior(packettype shared.PacketType, buf []byte, svr *Server) ([]byte, error) {
 	fmt.Printf("Handling request %c\n", packettype)
 	request_str := string(buf)

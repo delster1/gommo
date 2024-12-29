@@ -2,10 +2,10 @@ package main
 
 import (
 	"errors"
-	"log"
 	"fmt"
 	"gommo/shared"
-"os"
+	"log"
+	"os"
 	"os/signal"
 	"syscall"
 
@@ -64,24 +64,22 @@ func drawBox(s tcell.Screen, x1, y1, x2, y2 int, style tcell.Style, text string)
 	drawText(s, x1+1, y1+1, x2-1, y2-1, style, text)
 }
 
-
 func NewScreen() (tcell.Screen, tcell.Style, error) {
-    s, err := tcell.NewScreen()
-    if err != nil {
-        return nil, tcell.Style{}, fmt.Errorf("failed to create new screen: %w", err)
-    }
-    if err := s.Init(); err != nil {
-        return nil, tcell.Style{}, fmt.Errorf("failed to initialize screen: %w", err)
-    }
-    defStyle := tcell.StyleDefault.Background(tcell.ColorReset).Foreground(tcell.ColorReset)
-    s.SetStyle(defStyle)
-    s.EnablePaste()
-    s.Clear()
-    return s, defStyle, nil
+	s, err := tcell.NewScreen()
+	if err != nil {
+		return nil, tcell.Style{}, fmt.Errorf("failed to create new screen: %w", err)
+	}
+	if err := s.Init(); err != nil {
+		return nil, tcell.Style{}, fmt.Errorf("failed to initialize screen: %w", err)
+	}
+	defStyle := tcell.StyleDefault.Background(tcell.ColorReset).Foreground(tcell.ColorReset)
+	s.SetStyle(defStyle)
+	s.EnablePaste()
+	s.Clear()
+	return s, defStyle, nil
 }
 
-
-func initScreen() (tcell.Screen,  tcell.Style ) {
+func initScreen() (tcell.Screen, tcell.Style) {
 
 	s, err := tcell.NewScreen()
 	if err != nil {
@@ -97,28 +95,28 @@ func initScreen() (tcell.Screen,  tcell.Style ) {
 	return s, defStyle
 }
 
-func Render(client Client,  sigChan chan os.Signal) error {
+func Render(client Client, sigChan chan os.Signal) error {
 	s, defStyle := initScreen()
 	size := client.u.Size
 	quit := func() {
 		maybePanic := recover()
 		s.Fini()
-			panic(maybePanic)
+		panic(maybePanic)
 	}
 	defer quit()
-		
+
 	fmt.Println("INSIDE RENDERER")
 	drawBox(s, 0, 0, size, size, defStyle, "")
-	
+
 	drawBox(s, 0, 0, client.u.Size, client.u.Size, defStyle, "")
 	select {
 	case <-sigChan:
 		return nil
 	default:
-		update_map(client, s, defStyle) // updates screen with map	
-		 s.Show()
+		update_map(client, s, defStyle) // updates screen with map
+		s.Show()
 		for {
-			 s.Show()
+			s.Show()
 			buf := make([]byte, 1024)
 
 			ev := s.PollEvent()
@@ -135,13 +133,13 @@ func Render(client Client,  sigChan chan os.Signal) error {
 				} else if ev.Key() == tcell.KeyLeft {
 					step(&client, shared.Left)
 
-				} else if ev.Key() == tcell.KeyRight{
+				} else if ev.Key() == tcell.KeyRight {
 					step(&client, shared.Right)
-					
+
 				}
-				fmt.Printf("(%d, %d)\n", client.location.x, client.location.y)
+				// fmt.Printf("(%d, %d)\n", client.location.x, client.location.y)
 				n, err := client.conn.Write(build_request_packet(client, shared.PacketTypeMove))
-				
+
 				if err != nil {
 					fmt.Println(err)
 					return err
@@ -152,19 +150,19 @@ func Render(client Client,  sigChan chan os.Signal) error {
 
 					return err
 				}
-				handle_response_behavior(buf[:],n, &client)
-				
+				handle_response_behavior(buf[:], n, &client)
+
 			}
 			s.Clear()
 			update_map(client, s, defStyle)
-			
+
 		}
-	}	
+	}
 }
 
-func update_map(client Client, s tcell.Screen, defStyle tcell.Style){ 
+func update_map(client Client, s tcell.Screen, defStyle tcell.Style) {
 	for index, cell := range client.u.Map {
-		if (index == 0 || index % client.u.Size == 0){
+		if index == 0 || index%client.u.Size == 0 {
 			continue
 		}
 
@@ -187,7 +185,7 @@ func update_map(client Client, s tcell.Screen, defStyle tcell.Style){
 		default:
 			renderedCell = 'X'
 		}
-		
+
 		s.SetContent(xPos-1, yPos-1, renderedCell, nil, defStyle)
 	}
 }
