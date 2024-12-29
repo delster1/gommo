@@ -34,11 +34,11 @@ const (
 
 type Cell int32 // SEE BELOW vvvvv
 const (
-	Empty Cell = iota
-	Land
-	Water
-	Mountains
-	User
+	Empty Cell = iota // 0
+	Land // 1
+	Water // 2 
+	Mountains // 3 
+	User // 4
 
 )
 // 0 for empty
@@ -78,7 +78,7 @@ func CompressMapData(data []byte) ([]byte, error) {
 }
 
 func DecompressMapData(data []byte) ([]byte, error) {
-    fmt.Printf("%s\n",data) // Log data length
+    // fmt.Printf("%s\n",data) // Log data length
     
     buf := bytes.NewReader(data)
     reader, err := zlib.NewReader(buf)
@@ -91,8 +91,8 @@ func DecompressMapData(data []byte) ([]byte, error) {
     var out bytes.Buffer
     _, err = io.Copy(&out, reader)
     if err != nil {
-        fmt.Printf("- copying to out, %s", err)
-		errStr := fmt.Errorf("ERROR copying %s\nof len %d, %s", data, len(data), err)
+		// errStr := fmt.Errorf("ERROR copying %s\nof len %d, %s", data, len(data), err)
+		errStr := fmt.Errorf("ERROR")
         return nil, errStr
     }
 

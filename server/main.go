@@ -156,6 +156,9 @@ func handle_connection_request(packettype shared.PacketType, svr *Server, con ne
 	switch packettype {
 	case shared.PacketTypeConnect:
 		sessionid, _ := GenerateSessionID(16)
+
+		svr.AddUser(sessionid)
+
 		base := fmt.Sprintf("gommo\nC\n%s\n", sessionid)
 		length := len(base)
 		response := fmt.Sprintf("%d\n%s\n", length, base)
@@ -244,6 +247,11 @@ func handle_request_behavior(packettype shared.PacketType, buf []byte, svr *Serv
 		return final_packet, nil
 	case shared.PacketTypeMove:
 		var final_packet []byte
+
+		player := svr.Playerlist[parts[3]]
+		playerLocation := player.YPosition*svr.u.Size + player.XPosititon
+
+		svr.u.Map[playerLocation] = shared.Empty
 		// user is moving
 		idx, err := strconv.Atoi(parts[4])
 		if err != nil {
@@ -251,6 +259,8 @@ func handle_request_behavior(packettype shared.PacketType, buf []byte, svr *Serv
 			return nil, err
 		}
 		svr.u.Map[idx] = shared.User
+		player.XPosititon = idx % svr.u.Size 
+		player.YPosition = idx / svr.u.Size
 
 		mapBytes, err := shared.ConvertMapToBytes(svr.u)
 		if err != nil {

@@ -15,11 +15,17 @@ type Connection struct {
 	SessionID  string
 	connection net.Conn
 }
-
 func CreateServer(port int, u shared.Universe) (s Server) {
-	s = Server{status: true, Playerlist: nil, port: port, u: u }
-	return s
+    s = Server{
+        status:     true,
+        Playerlist: make(map[string]*shared.Player), // Initialize the map
+        port:       port,
+        u:          u,
+    }
+    return s
 }
+
+
 
 func (s *Server) AddUser(sessionID string) (result bool) {
 

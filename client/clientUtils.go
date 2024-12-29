@@ -20,30 +20,29 @@ type Client struct {
 	conn        net.Conn
 	isConnected bool
 }
-
 func step(c *Client, direction shared.Dir) {
-	old_idx := c.u.Size*c.location.y + c.location.x
+    old_idx := c.u.Size*c.location.y + c.location.x
 
-	// Update the location based on direction
-	switch direction {
-	case shared.Up:
-		c.location.y = (c.location.y - 1 + c.u.Size) % c.u.Size
-	case shared.Down:
-		c.location.y = (c.location.y + 1) % c.u.Size
-	case shared.Left:
-		c.location.x = (c.location.x - 1 + c.u.Size) % c.u.Size
-	case shared.Right:
-		c.location.x = (c.location.x + 1) % c.u.Size
-	default:
-		return // No movement
-	}
+    // Update the location based on direction
+    switch direction {
+    case shared.Up:
+        c.location.y = (c.location.y - 1 + c.u.Size) % c.u.Size
+    case shared.Down:
+        c.location.y = (c.location.y + 1) % c.u.Size
+    case shared.Left:
+        c.location.x = (c.location.x - 1 + c.u.Size) % c.u.Size
+    case shared.Right:
+        c.location.x = (c.location.x + 1) % c.u.Size
+    default:
+        return // No movement
+    }
 
-	// Calculate the new index after movement
-	idx := c.u.Size*c.location.y + c.location.x
+    // Calculate the new index after movement
+    idx := c.u.Size*c.location.y + c.location.x
 
-	// Update the map logically
-	c.u.Map[old_idx] = shared.Empty // Set the old cell to Empty
-	c.u.Map[idx] = shared.User      // Set the new cell to User
+    // Update the map logically
+    c.u.Map[old_idx] = shared.Empty // Set the old cell to Empty
+    c.u.Map[idx] = shared.User      // Set the new cell to User
 }
 func handle_response_behavior(response []byte, n int, c *Client) error {
 	response_str := string(response)
@@ -175,8 +174,19 @@ func BuildClient(conn net.Conn, errChan chan<- error) (c Client) {
 	fmt.Println("SENT MOVE PACKET")
 	// recieve and check move packet validation
 	print("BUILT CLIENT")
+	c = Client{
+    u: shared.Universe{Map: universe.Map, Size: universe.Size},
+    location: Location{x: universe.Size / 2, y: universe.Size / 2},
+    SessionID: sessionID,
+    conn: conn,
+    isConnected: true,
+}
+
+// Place the player on the map
+idx := c.u.Size*c.location.y + c.location.x
+c.u.Map[idx] = shared.User
+
 	c = Client{u: shared.Universe{Map: universe.Map, Size: universe.Size}, location: Location{x: universe.Size / 2, y: universe.Size / 2}, SessionID: string(sessionID), conn: conn, isConnected: true}
-	idx := c.u.Size*c.location.y + c.location.x
 	c.u.Map[idx] = 'P'
 
 	return c

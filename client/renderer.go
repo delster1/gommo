@@ -97,7 +97,6 @@ func initScreen() (tcell.Screen, tcell.Style) {
 
 func Render(client Client, sigChan chan os.Signal) error {
 	s, defStyle := initScreen()
-	size := client.u.Size
 	quit := func() {
 		maybePanic := recover()
 		s.Fini()
@@ -106,9 +105,7 @@ func Render(client Client, sigChan chan os.Signal) error {
 	defer quit()
 
 	fmt.Println("INSIDE RENDERER")
-	drawBox(s, 0, 0, size, size, defStyle, "")
 
-	drawBox(s, 0, 0, client.u.Size, client.u.Size, defStyle, "")
 	select {
 	case <-sigChan:
 		return nil
@@ -161,31 +158,33 @@ func Render(client Client, sigChan chan os.Signal) error {
 }
 
 func update_map(client Client, s tcell.Screen, defStyle tcell.Style) {
-	for index, cell := range client.u.Map {
-		if index == 0 || index%client.u.Size == 0 {
-			continue
-		}
+    for index, cell := range client.u.Map {
+        yPos := index / client.u.Size
+        xPos := index % client.u.Size
 
-		yPos := index / client.u.Size
-		xPos := index % client.u.Size
+        var renderedCell rune
+        switch cell {
+        case shared.Empty:
+            renderedCell = ' '
+        case shared.Land:
+            renderedCell = 'L'
+        case shared.Water:
+            renderedCell = 'W'
+        case shared.Mountains:
+            renderedCell = 'M'
+        case shared.User:
+            renderedCell = 'X' // Player is 'X'
+        default:
+            renderedCell = '?'
+        }
 
-		var renderedCell rune
+        // Render the cell
+        s.SetContent(xPos, yPos, renderedCell, nil, defStyle)
+    }
 
-		switch cell {
-		case 0:
-			renderedCell = ' '
-		case 1:
-			renderedCell = 'L' // make these fancy runes later
-		case 2:
-			renderedCell = 'W'
-		case 3:
-			renderedCell = 'M'
-		case 4:
-			renderedCell = 'P'
-		default:
-			renderedCell = 'X'
-		}
-
-		s.SetContent(xPos-1, yPos-1, renderedCell, nil, defStyle)
-	}
+    // Ensure the player’s position is rendered explicitly
+    playerX := client.location.x
+    playerY := client.location.y
+    s.SetContent(playerX, playerY, 'X', nil, defStyle)
 }
+

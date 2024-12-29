@@ -10,9 +10,9 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-
 )
-func build_configure_packet( packetType shared.PacketType) []byte {
+
+func build_configure_packet(packetType shared.PacketType) []byte {
 	switch packetType {
 	case shared.PacketTypeConnect:
 		base := fmt.Sprintf("gommo\n%c\n", packetType)
@@ -29,7 +29,7 @@ func build_configure_packet( packetType shared.PacketType) []byte {
 		// TODO:
 		base := fmt.Sprintf("gommo\n%c\n", packetType)
 		packet := fmt.Sprintf("%d\n%s\n", len(base), base)
-		fmt.Println(len(base))
+		// fmt.Println(len(base))
 		return []byte(packet)
 	case shared.PacketTypeDisconnect:
 		return []byte("X")
@@ -42,7 +42,7 @@ func handle_setup_behavior(response []byte) (interface{}, error) {
 	packet_parts := strings.Split(response_str, "\n")
 	// packet_len := packet_parts[0]
 	if packet_parts[1] != "gommo" {
-		errorString := fmt.Sprintf("bad packet recieved %s",response_str)
+		errorString := fmt.Sprintf("bad packet recieved %s", response_str)
 		return "", errors.New(errorString)
 	}
 	switch packet_parts[2] {
@@ -69,7 +69,7 @@ func handle_setup_behavior(response []byte) (interface{}, error) {
 		return clientUniverse, nil
 	case "L": // client recieved move packet
 		if packet_parts[0] == "8" {
-			return "", nil	
+			return "", nil
 		} else {
 			return "", nil
 		}
@@ -94,7 +94,6 @@ func main() {
 	fmt.Println("HELOOOOO")
 	defer conn.Close()
 
-
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	errChan := make(chan error, 1)
@@ -104,13 +103,13 @@ func main() {
 
 	fmt.Println("running renderer")
 	//MAIN LOOP IN RENDER
-	err = Render(client , sigChan)
+	err = Render(client, sigChan)
 	if err != nil {
 		return
 	}
 	fmt.Println("renderer ended")
 	for {
-	select {
+		select {
 		case <-sigChan:
 			// Gracefully handle the signal (Ctrl+C or termination)
 			fmt.Println("Exiting, closing connection...")
